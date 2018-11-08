@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+ <param name="use_sim_time" value="true" />
+
+ <!-- Console launch prefix -->
+  <arg name="launch_prefix" default=""/>
+
+  <!-- graph folder. -->
+  <arg name="graph_path"  default="$(find perception_cv)/graph"/>
+
+  <!-- Load parameters -->
+  <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/ros.yaml"/>
+  <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/cameraParams.yaml"/>
+  <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/backbone_graph.yaml"/>
+
+  <!--node pkg="ssddetect" type="ssddetect" name="ssddetect" output="screen" launch-prefix="$(arg launch_prefix) gdb -ex run"-->
+  <node pkg="perception_cv" type="perception_cv" name="perception_cv" output="screen" launch-prefix="$(arg launch_prefix)">
+    <param name="graph_path"          value="$(arg graph_path)" />
+  </node>
+
+</launch>

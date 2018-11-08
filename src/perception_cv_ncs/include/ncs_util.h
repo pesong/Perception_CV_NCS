@@ -19,18 +19,27 @@
 #include <cv_bridge/cv_bridge.h>
 
 #include <mvnc.h>
-extern "C" {
-#include "fp16.h"
-}
+
 
 extern bool g_graph_Success;
-extern ncStatus_t retCode;
+extern ncStatus_t retCodeSeg;
+extern ncStatus_t retCodeDet;
+
 extern struct ncDeviceHandle_t* deviceHandlePtr;
-extern struct ncGraphHandle_t* graphHandlePtr;
-extern void* graphFileBuf;
-extern unsigned int graphFileLen;
-extern struct ncFifoHandle_t* inFifoHandlePtr;
-extern struct ncFifoHandle_t* outFifoHandlePtr;
+extern struct ncGraphHandle_t* graphHandlePtr_seg;
+extern struct ncGraphHandle_t* graphHandlePtr_det;
+
+extern void* graphFileBuf_seg;
+extern void* graphFileBuf_det;
+
+extern unsigned int graphFileLenSeg;
+extern unsigned int graphFileLenDet;
+
+// Now we need to allocate graph and create and in/out fifos
+extern struct ncFifoHandle_t* inFifoHandlePtr_seg;
+extern struct ncFifoHandle_t* outFifoHandlePtr_seg;
+extern struct ncFifoHandle_t* inFifoHandlePtr_det;
+extern struct ncFifoHandle_t* outFifoHandlePtr_det;
 
 // 16 bits.  will use this to store half precision floats since C++ has no
 // built in support for it.
@@ -66,7 +75,6 @@ extern void ipl_into_image(IplImage *src, image *im);
 extern unsigned char* image_to_stb(image* in);
 extern unsigned char* cvMat_to_charImg(cv::Mat pic);
 extern void *LoadFile(const char *path, unsigned int *length);
-extern half *LoadImage(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean);
 extern float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean);
 
 

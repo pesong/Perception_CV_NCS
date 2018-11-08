@@ -9,21 +9,24 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 
-extern "C" {
-#include "fp16.h"
-}
 
 
-//! movidius 设备预处理
+//! movidius preprocessing
 bool g_graph_Success;
-ncStatus_t retCode;
+ncStatus_t retCodeSeg;
+ncStatus_t retCodeDet;
 struct ncDeviceHandle_t* deviceHandlePtr;
-struct ncGraphHandle_t* graphHandlePtr;
-void* graphFileBuf;
-unsigned int graphFileLen;
+struct ncGraphHandle_t* graphHandlePtr_seg;
+struct ncGraphHandle_t* graphHandlePtr_det;
+void* graphFileBuf_seg;
+void* graphFileBuf_det;
+unsigned int graphFileLenSeg;
+unsigned int graphFileLenDet;
 // Now we need to allocate graph and create and in/out fifos
-struct ncFifoHandle_t* inFifoHandlePtr;
-struct ncFifoHandle_t* outFifoHandlePtr;
+struct ncFifoHandle_t* inFifoHandlePtr_seg;
+struct ncFifoHandle_t* outFifoHandlePtr_seg;
+struct ncFifoHandle_t* inFifoHandlePtr_det;
+struct ncFifoHandle_t* outFifoHandlePtr_det;
 
 
 image* ipl_to_image(IplImage* src)
@@ -124,7 +127,7 @@ void *LoadFile(const char *path, unsigned int *length)
     return buf;
 }
 
-// 加载为movidius所需要的图片格式，并resize为固定大小
+// load the image converted from ros topic, resize and normalize the image with type float32
 float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean)
 {
     int i;
@@ -177,65 +180,3 @@ float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, in
     return imgfp32;
 }
 
-
-// 加载为movidius所需要的图片格式，并resize为固定大小
-half *LoadImage(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean)
-{
-    int i;
-    unsigned char *imgresized;
-    float *imgfp32;
-    half *imgfp16;
-
-    if(!img)
-    {
-        printf("The picture  could not be loaded\n");
-        return 0;
-    }
-    imgresized = (unsigned char*) malloc(3*target_w*target_h);
-    if(!imgresized)
-    {
-        free(img);
-        perror("malloc");
-        return 0;
-    }
-    //std::cout << "img: " << img << std::endl;
-    stbir_resize_uint8(img, ori_w, ori_h, 0, imgresized, target_w, target_h, 0, 3);
-    free(img);
-    imgfp32 = (float*) malloc(sizeof(*imgfp32) * target_w * target_h * 3);
-    if(!imgfp32)
-    {
-        free(imgresized);
-        perror("malloc");
-        return 0;
-    }
-    for(i = 0; i < target_w * target_h * 3; i++)
-        imgfp32[i] = imgresized[i];
-    free(imgresized);
-    imgfp16 = (half*) malloc(sizeof(*imgfp16) * target_w * target_h * 3);
-    if(!imgfp16)
-    {
-        free(imgfp32);
-        perror("malloc");
-        return 0;
-    }
-    //adjust values to range between -1.0 and + 1.0
-    //change color channel
-    for(i = 0; i < target_w*target_h; i++)
-    {
-        float blue, green, red;
-        blue = imgfp32[3*i+2];
-        green = imgfp32[3*i+1];
-        red = imgfp32[3*i+0];
-
-        imgfp32[3*i+0] = (blue-mean[0]) * 0.007843;
-        imgfp32[3*i+1] = (green-mean[1]) * 0.007843;
-        imgfp32[3*i+2] = (red-mean[2]) * 0.007843;
-
-        // uncomment to see what values are getting passed to mvncLoadTensor() before conversion to half float
-        //printf("Blue: %f, Grean: %f,  Red: %f \n", imgfp32[3*i+0], imgfp32[3*i+1], imgfp32[3*i+2]);
-    }
-
-    floattofp16((unsigned char *)imgfp16, imgfp32, 3*target_w*target_h);
-    free(imgfp32);
-    return imgfp16;
-}

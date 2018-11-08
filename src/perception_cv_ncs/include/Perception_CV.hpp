@@ -5,25 +5,42 @@
 #ifndef PERCEPTION_CV_H
 #define PERCEPTION_CV_H
 
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
-#include <opencv2/highgui/highgui.hpp>
-#include <cv_bridge/cv_bridge.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <thread>
-#include <mvnc.h>
 #include <boost/smart_ptr.hpp>
 #include <boost/make_shared.hpp>
+
+// ROS
+#include <ros/ros.h>
+#include <image_transport/image_transport.h>
+#include <opencv2/highgui/highgui.hpp>
+#include <cv_bridge/cv_bridge.h>
+
+// msgs
+#include <perception_cv/BoundingBoxes.h>
+#include <perception_cv/BoundingBox.h>
+
+// NCS
 #include "ncs_util.h"
-#include "Perception_CV.hpp"
+#include <mvnc.h>
 
 
-namespace perception_cv_ncs {
+typedef struct{
+    int label;
+    int x;
+    int y;
+    int width;
+    int height;
+    float prob;
+} Box;
+
+namespace perception_cv {
 
     // graph file name
-    char *GRAPH_FILE_NAME;
+    char *GRAPH_FILE_NAME_DET;
+    char *GRAPH_FILE_NAME_SEG;
     //! image dimensions, network mean values for each channel in BGR order.
     int networkDim;
     int target_h;
@@ -31,6 +48,10 @@ namespace perception_cv_ncs {
     //cityscapes:
 //    float networkMean[] = {71.60167789, 82.09696889, 72.30608881};
      float networkMean[] = {125., 125., 125.};
+
+    //image buffer
+    float* imageBufFP32Ptr;
+    cv::Mat ROS_img_resized;
 
     class Perception_CV {
     public:
@@ -63,7 +84,7 @@ namespace perception_cv_ncs {
         cv::Mat ncs_result_process(float* output, int h, int w);
 
         cv::Mat camImageCopy_;
-        std::thread segThread_;
+        std::thread inferThread_;
 
         bool imageStatus_ = false;
 
@@ -72,7 +93,7 @@ namespace perception_cv_ncs {
         void *segThread();
         void *publishThread();
 
-        void seg();
+        void infer();
 
         cv::Mat getCVImage();
 
