@@ -18,6 +18,11 @@
 #include <opencv2/objdetect/objdetect.hpp>
 #include <cv_bridge/cv_bridge.h>
 
+// msgs
+#include <perception_cv/Bboxes.h>
+#include <perception_cv/Bbox.h>
+
+
 #include <mvnc.h>
 
 
@@ -41,9 +46,13 @@ extern struct ncFifoHandle_t* outFifoHandlePtr_seg;
 extern struct ncFifoHandle_t* inFifoHandlePtr_det;
 extern struct ncFifoHandle_t* outFifoHandlePtr_det;
 
+extern int numClasses_;
+extern float ssd_threshold;
+
 // 16 bits.  will use this to store half precision floats since C++ has no
 // built in support for it.
 typedef unsigned short half;
+
 
 class image {
 public:
@@ -77,5 +86,9 @@ extern unsigned char* cvMat_to_charImg(cv::Mat pic);
 extern void *LoadFile(const char *path, unsigned int *length);
 extern float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean);
 
+extern cv::Mat seg_result_process(float* output, int h, int w);
+//extern void ssd_result_process(float *output, std::vector <Bbox> &result, cv::Mat &image, int numClasses_);
+//extern bool Overlay_on_image(cv::Mat &image, float *object_info, int Length, Bbox &single_box);
+extern double getWallTime();
 
 #endif //NCS_UTIL_H

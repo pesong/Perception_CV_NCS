@@ -48,6 +48,7 @@ namespace perception_cv {
 
         // load param
         bool flip_flag;
+        float thresh;
         std::string graphPath;
         std::string graphModelSeg;
         std::string graphModelDet;
@@ -61,6 +62,11 @@ namespace perception_cv {
         nodeHandle_.param("backbone_graph/target_h", target_h, 300);
         nodeHandle_.param("backbone_graph/target_w", target_w, 300);
         nodeHandle_.param("camera/image_flip", flip_flag, false);
+        nodeHandle_.param("ssd_model/detection_classes/names", classLabels_, std::vector<std::string>(0));
+        nodeHandle_.param("ssd_model/threshold/value", thresh, (float) 0.3);
+
+        numClasses_ = classLabels_.size();
+        ssd_threshold = thresh;
 
         strcpy(GRAPH_FILE_NAME_SEG, (graphPath + "/" + graphModelSeg).c_str());
         strcpy(GRAPH_FILE_NAME_DET, (graphPath + "/" + graphModelDet).c_str());
@@ -185,6 +191,8 @@ namespace perception_cv {
         return;
     }
 
+
+    // control the infer thread
     void Perception_CV::infer() {
         const auto wait_duration = std::chrono::milliseconds(2000);
         //Waiting for image
@@ -197,7 +205,12 @@ namespace perception_cv {
         }
 
         std::thread seg_thread;
+        std::thread det_thread;
+
         srand(2222222);
+
+        int count = 0;
+        demoTime_ = getWallTime();
 
         while (!demoDone_) {
 
@@ -209,12 +222,19 @@ namespace perception_cv {
             imageBufFP32Ptr = LoadImage32(img, target_w, target_h, ROS_img.cols, ROS_img.rows, networkMean);
 
 
-            seg_thread = std::thread(&Perception_CV::segThread, this);
+//            seg_thread = std::thread(&Perception_CV::segThread, this);
+            det_thread = std::thread(&Perception_CV::detThread, this);
 
+            if (count % 1 == 0) {
+                fps_ = 1. / (getWallTime() - demoTime_);
+                demoTime_ = getWallTime();
+            }
 
             publishThread();
 
-            seg_thread.join();
+//            seg_thread.join();
+            det_thread.join();
+
 
             if (!isNodeRunning()) {
                 demoDone_ = true;
@@ -223,7 +243,7 @@ namespace perception_cv {
 
     }
 
-    //  movidius inference thread
+    //  movidius segmentation inference thread
     void *Perception_CV::segThread()
     {
 
@@ -236,7 +256,7 @@ namespace perception_cv {
 
         if (retCodeSeg != NC_OK)
         {   // error queuing input tensor for inference
-            printf("Could not queue inference\n");
+            printf("Could not queue seg inference\n");
             printf("Error from ncGraphQueueInferenceWithFifoElem is: %d\n", retCodeSeg);
         }
         else
@@ -267,7 +287,7 @@ namespace perception_cv {
                 printf("resultData is %d bytes which is %d 32-bit floats.\n", outFifoElemSize, numResults);
 
                 //post process
-                cv::Mat mask = ncs_result_process(resultDataFP32Ptr, target_h, target_w);
+                cv::Mat mask = seg_result_process(resultDataFP32Ptr, target_h, target_w);
 
                 //get masked image
                 double alpha = 0.7;
@@ -281,30 +301,64 @@ namespace perception_cv {
     }
 
 
-    //convert movidius seg_output to mask image
-    cv::Mat Perception_CV::ncs_result_process(float* output, int h, int w)
+    //  movidius detection inference thread
+    void *Perception_CV::detThread()
     {
-        cv::Mat mask_gray(h, w, CV_8UC1);
-        cv::Mat mask;
 
-        for (int i = 0; i < h; ++i) {
-            for (int j = 0; j < w; ++j) {
-                if(output[2*(w*i + j)] < output[2*(w*i + j) + 1]){
-                    mask_gray.at<uchar>(i,j) = 255;
-                } else{
-                    mask_gray.at<uchar>(i,j) = 0;
-                }
-            }
+        unsigned int tensorSizeDet = 0;  /* size of image buffer should be: sizeof(float) * reqsize * reqsize * 3;*/
+        tensorSizeDet = sizeof(float) * networkDim * networkDim * 3;
+
+        // queue the inference to start, when its done the result will be placed on the output fifo
+        retCodeDet = ncGraphQueueInferenceWithFifoElem(
+                graphHandlePtr_det, inFifoHandlePtr_det, outFifoHandlePtr_det, imageBufFP32Ptr, &tensorSizeDet, NULL);
+
+        if (retCodeDet != NC_OK)
+        {   // error queuing input tensor for inference
+            printf("Could not queue detection inference\n");
+            printf("Error from ncGraphQueueInferenceWithFifoElem is: %d\n", retCodeDet);
         }
-        // gray -> color
-        cv::cvtColor(mask_gray, mask, cv::COLOR_GRAY2BGR);
+        else
+        {
+            // the inference has been started, now read the output queue for the inference result
+            printf("---------------Successfully queued the detection inference for image-----------\n");
 
-        return mask;
+            // get the size required for the output tensor.  This depends on the  network definition as well as the output fifo's data type.
+            // if the network outputs 1000 tensor elements and the fifo  is using FP32 (float) as the data type then we need a buffer of
+            // sizeof(float) * 1000 into which we can read the inference results.  Rather than calculate this size we can also query the fifo itself
+            // for this size with the fifo option NC_RO_FIFO_ELEMENT_DATA_SIZE.
+            unsigned int outFifoElemSize = 0;
+            unsigned int optionSize = sizeof(outFifoElemSize);
+            ncFifoGetOption(outFifoHandlePtr_det,  NC_RO_FIFO_ELEMENT_DATA_SIZE, &outFifoElemSize, &optionSize);
+
+            float* resultDataFP32Ptr = (float*) malloc(outFifoElemSize);
+            void* UserParamPtr = NULL;
+
+            // read the output of the inference.  this will be in FP32 since that is how the fifos are created by default.
+            retCodeDet = ncFifoReadElem(outFifoHandlePtr_det, (void*)resultDataFP32Ptr, &outFifoElemSize, &UserParamPtr);
+            if (retCodeDet == NC_OK)
+            {   // Successfully got the inference result.
+                // The inference result is in the buffer pointed to by resultDataFP32Ptr
+                printf("----------Successfully got the detection inference result for image------------\n");
+                int numResults = outFifoElemSize/(int)sizeof(float);
+                printf("---------resultData is %d bytes which is %d 32-bit floats-----------\n", outFifoElemSize, numResults);
+
+                //post process
+                std::vector <Bbox> resultBoxes;
+//                ssd_result_process(resultDataFP32Ptr, resultBoxes, ROS_img_resized, numClasses_);
+                printf("FPS:%.1f\n", fps_);
+
+
+            }
+//            delete imageBufFP32Ptr;
+            free((void*)resultDataFP32Ptr);
+            return 0;
+        }
     }
+
 
     void *Perception_CV::publishThread() {
         // publish topic
-        sensor_msgs::ImagePtr msg_seg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", seg_out_img).toImageMsg();
+        sensor_msgs::ImagePtr msg_seg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", ROS_img_resized).toImageMsg();
         imageSegPub_.publish(msg_seg);
 
         return 0;

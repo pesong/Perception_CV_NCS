@@ -2,6 +2,7 @@
 // Created by pesong on 18-9-5.
 //
 
+
 #include "ncs_util.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -28,6 +29,10 @@ struct ncFifoHandle_t* outFifoHandlePtr_seg;
 struct ncFifoHandle_t* inFifoHandlePtr_det;
 struct ncFifoHandle_t* outFifoHandlePtr_det;
 
+int numClasses_;
+float ssd_threshold;
+
+std::map<int, std::string> LABELS = {{0,"background"}, {1, "person"}, {2, "car"}, {3, "bicycle"}};
 
 image* ipl_to_image(IplImage* src)
 {
@@ -180,3 +185,153 @@ float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, in
     return imgfp32;
 }
 
+
+//convert movidius seg_output to mask image
+cv::Mat seg_result_process(float *output, int h, int w)
+{
+    cv::Mat mask_gray(h, w, CV_8UC1);
+    cv::Mat mask;
+
+    for (int i = 0; i < h; ++i) {
+        for (int j = 0; j < w; ++j) {
+            if(output[2*(w*i + j)] < output[2*(w*i + j) + 1]){
+                mask_gray.at<uchar>(i,j) = 255;
+            } else{
+                mask_gray.at<uchar>(i,j) = 0;
+            }
+        }
+    }
+    // gray -> color
+    cv::cvtColor(mask_gray, mask, cv::COLOR_GRAY2BGR);
+
+    return mask;
+}
+
+//  a.	First fp16 value holds the number of valid detections = num_valid.
+//  b.	The next 6 values are unused.
+//  c.	The next (7 * num_valid) values contain the valid detections data
+//      Each group of 7 values will describe an object/box These 7 values in order.
+//       The values are:
+//         0: image_id (always 0)
+//         1: class_id (this is an index into labels)
+//         2: score (this is the probability for the class)
+//         3: box left location within image as number between 0.0 and 1.0
+//         4: box top location within image as number between 0.0 and 1.0
+//         5: box right location within image as number between 0.0 and 1.0
+//         6: box bottom location within image as number between 0.0 and 1.0
+// reslut 解析
+//void ssd_result_process(float *output, std::vector <Bbox> &result, cv::Mat &image, int numClasses_ ) {
+//    //std::cout << "SSD_result_infer" << std::endl;
+//    int num_valid_boxes = output[0];
+//    std::vector<Bbox> Rects_with_labels[numClasses_];
+//    //std::cout << "num_valid_boxes: " << num_valid_boxes << std::endl;
+//    // clip the boxes to the image size incase network returns boxes outside of the image
+//    for (int box_index = 0; box_index < num_valid_boxes; box_index++) {
+//        int base_index = 7 + box_index * 7;
+//        //todo_ziwei: 省略判断每一组数值是否有效(inf, nan, etc)， 之后需补上
+//        float x1 =
+//                0 > (int) (output[base_index + 3] * image.rows) ? 0 : (int) (output[base_index + 3] * image.rows);
+//        float y1 =
+//                0 > (int) (output[base_index + 4] * image.cols) ? 0 : (int) (output[base_index + 4] * image.cols);
+//        float x2 = image.rows < (int) (output[base_index + 5] * image.rows) ? image.rows : (int) (
+//                output[base_index + 5] * image.rows);
+//        float y2 = image.cols < (int) (output[base_index + 6] * image.cols) ? image.cols : (int) (
+//                output[base_index + 6] * image.cols);
+//
+////        std::cout << "box at index: " << box_index << " ClassID: " << LABELS[(int)output[base_index + 1]]<< " Confidence: " << output[base_index + 2]
+////                  << " Top Left: " << x1 << "," << y1 << " Bottom Right:" << x2 << "," << y2 << std::endl;
+//
+//        //用于图像显示box和label
+//        float output_pass[7];
+//        for (int i = 0; i < 7; i++) {
+//            output_pass[i] = output[base_index + i];
+//        }
+//
+//        Bbox single_box;
+//        if (Overlay_on_image(image, output_pass, 7, single_box))
+//        {
+//            int label_idx = single_box.label;
+//            Rects_with_labels[label_idx].push_back(single_box);
+//            //result.push_back(single_box); //Rects_with_labels
+//        }
+//    }
+//
+//    for(int i =0; i < numClasses_; i++)
+//    {
+////        NMS(Rects_with_labels[i]);
+//        for(int j = 0; j<Rects_with_labels[i].size(); j++)
+//        {
+//            cv::Rect box;
+//            box.x = Rects_with_labels[i][j].x;
+//            box.y = Rects_with_labels[i][j].y;
+//            box.width = Rects_with_labels[i][j].width;
+//            box.height = Rects_with_labels[i][j].height;
+//            int red_level = (int) (255.0 / LABELS.size()) * Rects_with_labels[i][j].label;
+//            std::string label = LABELS[(int) Rects_with_labels[i][j].label];
+//            cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
+//            cv::putText(image, label,
+//                        cv::Point(box.x, box.y),
+//                        cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
+//            result.push_back(Rects_with_labels[i][j]);
+//        }
+//    }
+//
+//}
+//
+//
+////filter some boxes of which score lower than threshold
+//bool Overlay_on_image(cv::Mat &image, float *object_info, int Length, Box &single_box) {
+//    // int min_score_percent = 60;
+//    int min_score_percent = int(ssd_threshold * 100);
+//    int source_image_width = image.cols;
+//    int source_image_height = image.rows;
+//    int base_index = 0;
+//    int class_id = object_info[base_index + 1];
+//    int percentage = int(object_info[base_index + 2] * 100);
+//    if (percentage < min_score_percent)
+//        return false;
+//
+////        std::cout << "source_image_width: " << source_image_width << " source_image_height: " << source_image_height
+////                  << std::endl;
+//    int box_left = (int) (object_info[base_index + 3] * source_image_width);
+//    int box_top = (int) (object_info[base_index + 4] * source_image_height);
+//    int box_right = (int) (object_info[base_index + 5] * source_image_width);
+//    int box_bottom = (int) (object_info[base_index + 6] * source_image_height);
+//    int box_width = box_right - box_left;
+//    int box_height = box_bottom - box_top;
+//    cv::Rect box;
+//    box.x = box_left;
+//    box.y = box_top;
+//    box.width = box_width;
+//    box.height = box_height;
+//
+//    int label_index = (int) object_info[base_index + 1];
+//    std::string label = LABELS[(int) object_info[base_index + 1]];
+//    int red_level = (int) (255.0 / LABELS.size()) * label_index;
+//    if(label_index != 0)
+//    {
+//        cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
+//        cv::putText(image, label,
+//                    cv::Point(box.x, box.y),
+//                    cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
+//    }
+////        std::cout << "box at index: " << label_index << " ClassID: " << LABELS[(int) object_info[base_index + 1]]
+////                  << " Confidence: " << object_info[base_index + 2]
+////                  << " Top Left: " << box_top << "," << box_left << " Bottom Right:" << box_right << "," << box_bottom
+////                  << std::endl;
+//    single_box.label = label_index;
+//    single_box.x = box_left;
+//    single_box.y = box_top;
+//    single_box.width = box_width;
+//    single_box.height = box_height;
+//    single_box.prob = object_info[base_index + 2];
+//    return true;
+//}
+
+double getWallTime() {
+    struct timeval time;
+    if (gettimeofday(&time, NULL)) {
+        return 0;
+    }
+    return (double) time.tv_sec + (double) time.tv_usec * .000001;
+}

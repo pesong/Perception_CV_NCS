@@ -5,6 +5,9 @@
 #ifndef PERCEPTION_CV_H
 #define PERCEPTION_CV_H
 
+#include <iostream>
+#include <math.h>
+#include <chrono>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -19,22 +22,13 @@
 #include <cv_bridge/cv_bridge.h>
 
 // msgs
-#include <perception_cv/BoundingBoxes.h>
-#include <perception_cv/BoundingBox.h>
+#include <perception_cv/Bboxes.h>
+#include <perception_cv/Bbox.h>
 
 // NCS
 #include "ncs_util.h"
 #include <mvnc.h>
 
-
-typedef struct{
-    int label;
-    int x;
-    int y;
-    int width;
-    int height;
-    float prob;
-} Box;
 
 namespace perception_cv {
 
@@ -87,22 +81,30 @@ namespace perception_cv {
         std::thread inferThread_;
 
         bool imageStatus_ = false;
-
         bool isNodeRunning_ = true;
 
         void *segThread();
+        void *detThread();
         void *publishThread();
 
-        void infer();
+        //! Class labels.
+        int numClasses_;
+        std::vector <std::string> classLabels_;
 
+        //! thread
+        float ssd_threshold;
+
+        void infer();
         cv::Mat getCVImage();
 
         bool getImageStatus(void);
-
         bool isNodeRunning(void);
 
         bool flipFlag;
+        double demoTime_;
         int demoDone_ = 0;
+        float fps_ = 0;
+
         cv::Mat seg_out_img;
 
         //! ROS node handle.
