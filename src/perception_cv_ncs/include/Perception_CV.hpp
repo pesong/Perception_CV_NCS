@@ -22,8 +22,8 @@
 #include <cv_bridge/cv_bridge.h>
 
 // msgs
-#include <perception_cv/Bboxes.h>
-#include <perception_cv/Bbox.h>
+#include <perception_cv/BoundingBox.h>
+#include <perception_cv/BoundingBoxes.h>
 
 // NCS
 #include "ncs_util.h"

@@ -221,8 +221,7 @@ namespace perception_cv {
             unsigned char *img = cvMat_to_charImg(ROS_img);
             imageBufFP32Ptr = LoadImage32(img, target_w, target_h, ROS_img.cols, ROS_img.rows, networkMean);
 
-
-//            seg_thread = std::thread(&Perception_CV::segThread, this);
+            seg_thread = std::thread(&Perception_CV::segThread, this);
             det_thread = std::thread(&Perception_CV::detThread, this);
 
             if (count % 1 == 0) {
@@ -230,10 +229,11 @@ namespace perception_cv {
                 demoTime_ = getWallTime();
             }
 
-            publishThread();
 
-//            seg_thread.join();
+            seg_thread.join();
             det_thread.join();
+
+            publishThread();
 
 
             if (!isNodeRunning()) {
@@ -291,7 +291,7 @@ namespace perception_cv {
 
                 //get masked image
                 double alpha = 0.7;
-                cv::addWeighted(ROS_img_resized, alpha, mask, 1 - alpha, 0.0, seg_out_img);
+                cv::addWeighted(ROS_img_resized, alpha, mask, 1 - alpha, 0.0, ROS_img_resized);
 
             }
             delete imageBufFP32Ptr;
@@ -343,10 +343,12 @@ namespace perception_cv {
                 printf("---------resultData is %d bytes which is %d 32-bit floats-----------\n", outFifoElemSize, numResults);
 
                 //post process
-                std::vector <Bbox> resultBoxes;
-//                ssd_result_process(resultDataFP32Ptr, resultBoxes, ROS_img_resized, numClasses_);
+                std::vector <Box> resultBoxes;
+                ssd_result_process(resultDataFP32Ptr, resultBoxes, ROS_img_resized, numClasses_);
                 printf("FPS:%.1f\n", fps_);
 
+//                cv::imshow("ssd_out_image", ROS_img_resized);
+//                cv::waitKey(0);
 
             }
 //            delete imageBufFP32Ptr;

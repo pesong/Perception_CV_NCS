@@ -55,8 +55,8 @@ find_package(Boost REQUIRED COMPONENTS thread)
 ## Generate messages in the 'msg' folder
  add_message_files(
    FILES
-   Bbox.msg
-   Bboxes.msg
+         BoundingBox.msg
+         BoundingBoxes.msg
 )
 
 ## Generate services in the 'srv' folder

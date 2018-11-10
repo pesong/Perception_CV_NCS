@@ -18,11 +18,6 @@
 #include <opencv2/objdetect/objdetect.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-// msgs
-#include <perception_cv/Bboxes.h>
-#include <perception_cv/Bbox.h>
-
-
 #include <mvnc.h>
 
 
@@ -53,6 +48,14 @@ extern float ssd_threshold;
 // built in support for it.
 typedef unsigned short half;
 
+typedef struct{
+    int label;
+    int x;
+    int y;
+    int width;
+    int height;
+    float prob;
+} Box;
 
 class image {
 public:
@@ -87,8 +90,12 @@ extern void *LoadFile(const char *path, unsigned int *length);
 extern float *LoadImage32(unsigned char *img, int target_w, int target_h, int ori_w, int ori_h, float *mean);
 
 extern cv::Mat seg_result_process(float* output, int h, int w);
-//extern void ssd_result_process(float *output, std::vector <Bbox> &result, cv::Mat &image, int numClasses_);
-//extern bool Overlay_on_image(cv::Mat &image, float *object_info, int Length, Bbox &single_box);
+extern void ssd_result_process(float *output, std::vector<Box> &result, cv::Mat &image, int numClasses_);
+extern bool Overlay_on_image(cv::Mat& image, float* object_info, int Length, Box& single_box);
+extern void NMS(std::vector <Box> &M);
+extern void sizeSort(std::vector <Box> &M);
+extern inline float getOverlap(const cv::Rect &b1, const cv::Rect &b2);
+
 extern double getWallTime();
 
 #endif //NCS_UTIL_H

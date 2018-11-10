@@ -2,6 +2,7 @@
 // Created by pesong on 18-9-5.
 //
 
+#include <math.h>
 
 #include "ncs_util.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -220,113 +221,164 @@ cv::Mat seg_result_process(float *output, int h, int w)
 //         5: box right location within image as number between 0.0 and 1.0
 //         6: box bottom location within image as number between 0.0 and 1.0
 // reslut 解析
-//void ssd_result_process(float *output, std::vector <Bbox> &result, cv::Mat &image, int numClasses_ ) {
-//    //std::cout << "SSD_result_infer" << std::endl;
-//    int num_valid_boxes = output[0];
-//    std::vector<Bbox> Rects_with_labels[numClasses_];
-//    //std::cout << "num_valid_boxes: " << num_valid_boxes << std::endl;
-//    // clip the boxes to the image size incase network returns boxes outside of the image
-//    for (int box_index = 0; box_index < num_valid_boxes; box_index++) {
-//        int base_index = 7 + box_index * 7;
-//        //todo_ziwei: 省略判断每一组数值是否有效(inf, nan, etc)， 之后需补上
-//        float x1 =
-//                0 > (int) (output[base_index + 3] * image.rows) ? 0 : (int) (output[base_index + 3] * image.rows);
-//        float y1 =
-//                0 > (int) (output[base_index + 4] * image.cols) ? 0 : (int) (output[base_index + 4] * image.cols);
-//        float x2 = image.rows < (int) (output[base_index + 5] * image.rows) ? image.rows : (int) (
-//                output[base_index + 5] * image.rows);
-//        float y2 = image.cols < (int) (output[base_index + 6] * image.cols) ? image.cols : (int) (
-//                output[base_index + 6] * image.cols);
-//
-////        std::cout << "box at index: " << box_index << " ClassID: " << LABELS[(int)output[base_index + 1]]<< " Confidence: " << output[base_index + 2]
-////                  << " Top Left: " << x1 << "," << y1 << " Bottom Right:" << x2 << "," << y2 << std::endl;
-//
-//        //用于图像显示box和label
-//        float output_pass[7];
-//        for (int i = 0; i < 7; i++) {
-//            output_pass[i] = output[base_index + i];
-//        }
-//
-//        Bbox single_box;
-//        if (Overlay_on_image(image, output_pass, 7, single_box))
-//        {
-//            int label_idx = single_box.label;
-//            Rects_with_labels[label_idx].push_back(single_box);
-//            //result.push_back(single_box); //Rects_with_labels
-//        }
-//    }
-//
-//    for(int i =0; i < numClasses_; i++)
-//    {
-////        NMS(Rects_with_labels[i]);
-//        for(int j = 0; j<Rects_with_labels[i].size(); j++)
-//        {
-//            cv::Rect box;
-//            box.x = Rects_with_labels[i][j].x;
-//            box.y = Rects_with_labels[i][j].y;
-//            box.width = Rects_with_labels[i][j].width;
-//            box.height = Rects_with_labels[i][j].height;
-//            int red_level = (int) (255.0 / LABELS.size()) * Rects_with_labels[i][j].label;
-//            std::string label = LABELS[(int) Rects_with_labels[i][j].label];
-//            cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
-//            cv::putText(image, label,
-//                        cv::Point(box.x, box.y),
-//                        cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
-//            result.push_back(Rects_with_labels[i][j]);
-//        }
-//    }
-//
-//}
-//
-//
+void ssd_result_process(float *output, std::vector<Box> &result, cv::Mat &image, int numClasses_){
+    int num_valid_boxes = output[0];
+
+    std::cout<< "num_valid_boxes: " << num_valid_boxes <<std::endl;
+
+    std::vector<Box> Rects_with_labels[numClasses_];
+    //std::cout << "num_valid_boxes: " << num_valid_boxes << std::endl;
+    // clip the boxes to the image size incase network returns boxes outside of the image
+    for (int box_index = 0; box_index < num_valid_boxes; box_index++) {
+        int base_index = 7 + box_index * 7;
+        //todo_ziwei: 省略判断每一组数值是否有效(inf, nan, etc)， 之后需补上
+        float x1 =
+                0 > (int) (output[base_index + 3] * image.rows) ? 0 : (int) (output[base_index + 3] * image.rows);
+        float y1 =
+                0 > (int) (output[base_index + 4] * image.cols) ? 0 : (int) (output[base_index + 4] * image.cols);
+        float x2 = image.rows < (int) (output[base_index + 5] * image.rows) ? image.rows : (int) (
+                output[base_index + 5] * image.rows);
+        float y2 = image.cols < (int) (output[base_index + 6] * image.cols) ? image.cols : (int) (
+                output[base_index + 6] * image.cols);
+
+//        std::cout << "box at index: " << box_index << " ClassID: " << LABELS[(int)output[base_index + 1]]<< " Confidence: " << output[base_index + 2]
+//                  << " Top Left: " << x1 << "," << y1 << " Bottom Right:" << x2 << "," << y2 << std::endl;
+
+        //用于图像显示box和label
+        float output_pass[7];
+        for (int i = 0; i < 7; i++) {
+            output_pass[i] = output[base_index + i];
+        }
+
+        Box single_box;
+        if (Overlay_on_image(image, output_pass, 7, single_box))
+        {
+            int label_idx = single_box.label;
+            Rects_with_labels[label_idx].push_back(single_box);
+            //result.push_back(single_box); //Rects_with_labels
+        }
+    }
+
+    // NMS and visualize; insert the bbox to result vector
+    for(int i =0; i < numClasses_; i++)
+    {
+        NMS(Rects_with_labels[i]);
+        for(int j = 0; j<Rects_with_labels[i].size(); j++)
+        {
+            cv::Rect box;
+            box.x = Rects_with_labels[i][j].x;
+            box.y = Rects_with_labels[i][j].y;
+            box.width = Rects_with_labels[i][j].width;
+            box.height = Rects_with_labels[i][j].height;
+            int red_level = (int) (255.0 / LABELS.size()) * Rects_with_labels[i][j].label;
+            std::string label = LABELS[(int) Rects_with_labels[i][j].label];
+            cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
+            cv::putText(image, label,
+                        cv::Point(box.x, box.y),
+                        cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
+            result.push_back(Rects_with_labels[i][j]);
+        }
+    }
+
+}
+
 ////filter some boxes of which score lower than threshold
-//bool Overlay_on_image(cv::Mat &image, float *object_info, int Length, Box &single_box) {
-//    // int min_score_percent = 60;
-//    int min_score_percent = int(ssd_threshold * 100);
-//    int source_image_width = image.cols;
-//    int source_image_height = image.rows;
-//    int base_index = 0;
-//    int class_id = object_info[base_index + 1];
-//    int percentage = int(object_info[base_index + 2] * 100);
-//    if (percentage < min_score_percent)
-//        return false;
-//
-////        std::cout << "source_image_width: " << source_image_width << " source_image_height: " << source_image_height
-////                  << std::endl;
-//    int box_left = (int) (object_info[base_index + 3] * source_image_width);
-//    int box_top = (int) (object_info[base_index + 4] * source_image_height);
-//    int box_right = (int) (object_info[base_index + 5] * source_image_width);
-//    int box_bottom = (int) (object_info[base_index + 6] * source_image_height);
-//    int box_width = box_right - box_left;
-//    int box_height = box_bottom - box_top;
-//    cv::Rect box;
-//    box.x = box_left;
-//    box.y = box_top;
-//    box.width = box_width;
-//    box.height = box_height;
-//
-//    int label_index = (int) object_info[base_index + 1];
-//    std::string label = LABELS[(int) object_info[base_index + 1]];
-//    int red_level = (int) (255.0 / LABELS.size()) * label_index;
-//    if(label_index != 0)
-//    {
-//        cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
-//        cv::putText(image, label,
-//                    cv::Point(box.x, box.y),
-//                    cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
-//    }
-////        std::cout << "box at index: " << label_index << " ClassID: " << LABELS[(int) object_info[base_index + 1]]
-////                  << " Confidence: " << object_info[base_index + 2]
-////                  << " Top Left: " << box_top << "," << box_left << " Bottom Right:" << box_right << "," << box_bottom
-////                  << std::endl;
-//    single_box.label = label_index;
-//    single_box.x = box_left;
-//    single_box.y = box_top;
-//    single_box.width = box_width;
-//    single_box.height = box_height;
-//    single_box.prob = object_info[base_index + 2];
-//    return true;
-//}
+bool Overlay_on_image(cv::Mat &image, float *object_info, int Length, Box &single_box) {
+    // int min_score_percent = 60;
+    int min_score_percent = int(ssd_threshold * 100);
+    int source_image_width = image.cols;
+    int source_image_height = image.rows;
+    int base_index = 0;
+    int class_id = object_info[base_index + 1];
+    int percentage = int(object_info[base_index + 2] * 100);
+    if (percentage < min_score_percent)
+        return false;
+
+//        std::cout << "source_image_width: " << source_image_width << " source_image_height: " << source_image_height
+//                  << std::endl;
+    int box_left = (int) (object_info[base_index + 3] * source_image_width);
+    int box_top = (int) (object_info[base_index + 4] * source_image_height);
+    int box_right = (int) (object_info[base_index + 5] * source_image_width);
+    int box_bottom = (int) (object_info[base_index + 6] * source_image_height);
+    int box_width = box_right - box_left;
+    int box_height = box_bottom - box_top;
+    cv::Rect box;
+    box.x = box_left;
+    box.y = box_top;
+    box.width = box_width;
+    box.height = box_height;
+
+    int label_index = (int) object_info[base_index + 1];
+    std::string label = LABELS[(int) object_info[base_index + 1]];
+    int red_level = (int) (255.0 / LABELS.size()) * label_index;
+    if(label_index != 0)
+    {
+        cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
+        cv::putText(image, label,
+                    cv::Point(box.x, box.y),
+                    cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
+    }
+//        std::cout << "box at index: " << label_index << " ClassID: " << LABELS[(int) object_info[base_index + 1]]
+//                  << " Confidence: " << object_info[base_index + 2]
+//                  << " Top Left: " << box_top << "," << box_left << " Bottom Right:" << box_right << "," << box_bottom
+//                  << std::endl;
+    single_box.label = label_index;
+    single_box.x = box_left;
+    single_box.y = box_top;
+    single_box.width = box_width;
+    single_box.height = box_height;
+    single_box.prob = object_info[base_index + 2];
+    return true;
+}
+
+void NMS(std::vector <Box> &M)
+{
+    sizeSort(M);
+    for(int i=0; i<M.size(); i++)
+    {
+        for(int j=i+1; j<M.size(); j++)
+        {
+            cv::Rect a, b;
+            a.x = M[i].x;
+            a.y = M[i].y;
+            a.width = M[i].width;
+            a.height = M[i].height;
+
+            b.x = M[j].x;
+            b.y = M[j].y;
+            b.width = M[j].width;
+            b.height = M[j].height;
+            //std::cout << "getOverlap(a, b): " << getOverlap(a, b) << std::endl;
+            if(getOverlap(a, b) > 0.7) //同类框的重复面积大于0.73需删除
+            {
+                M.erase(M.begin()+j);
+                j--;
+                // std::cout << "delete a yolo rect" << std::endl;
+            }
+        }
+    }
+}
+
+void sizeSort(std::vector <Box> &M)
+{
+    sort(M.begin(),M.end(),[](const Box &a, const Box &b)
+    {
+        return a.width*a.height > b.width*b.height;
+    });
+}
+
+inline float getOverlap(const cv::Rect &b1, const cv::Rect &b2) //b1是激光的框，b2是摄像头识别的人
+{
+#define min___(a, b) (a > b ? b : a)
+#define max___(a, b) (a < b ? b : a)
+    int ws1 = min___(b1.x + b1.width, b2.x + b2.width) - max___(b1.x, b2.x);
+    int hs1 = min___(b1.y + b1.height, b2.y + b2.height) - max___(b1.y, b2.y);
+    float o = max___(0, ws1) * max___(0, hs1);
+    o = o / (b2.width * b2.height);
+    //o = o / (b1.width * b1.height + b2.width * b2.height - o);
+    return o;
+}
+
 
 double getWallTime() {
     struct timeval time;

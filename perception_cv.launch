@@ -12,6 +12,7 @@
   <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/ros.yaml"/>
   <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/cameraParams.yaml"/>
   <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/backbone_graph.yaml"/>
+  <rosparam command="load" ns="perception_cv" file="$(find perception_cv)/config/gaussian_person_ssd_ncs.yaml"/>
 
   <!--node pkg="ssddetect" type="ssddetect" name="ssddetect" output="screen" launch-prefix="$(arg launch_prefix) gdb -ex run"-->
   <node pkg="perception_cv" type="perception_cv" name="perception_cv" output="screen" launch-prefix="$(arg launch_prefix)">
