@@ -262,7 +262,7 @@ void ssd_result_process(float *output, std::vector<Box> &result, cv::Mat &image,
     // NMS and visualize; insert the bbox to result vector
     for(int i =0; i < numClasses_; i++)
     {
-        NMS(Rects_with_labels[i]);
+//        NMS(Rects_with_labels[i]);
         for(int j = 0; j<Rects_with_labels[i].size(); j++)
         {
             cv::Rect box;
@@ -275,7 +275,7 @@ void ssd_result_process(float *output, std::vector<Box> &result, cv::Mat &image,
             cv::rectangle(image, box, cv::Scalar(red_level, 255, 255), 2);
             cv::putText(image, label,
                         cv::Point(box.x, box.y),
-                        cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 1, CV_AA);
+                        cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(red_level, 255, 255), 0.4, CV_AA);
             result.push_back(Rects_with_labels[i][j]);
         }
     }
